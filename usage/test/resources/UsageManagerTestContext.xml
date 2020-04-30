@@ -34,8 +34,6 @@
 
   <bean id="transactionContextBuilder" class="com.cloud.utils.db.TransactionContextBuilder" />
   <bean id="componentContext" class="com.cloud.utils.component.ComponentContext"/>
-  <bean id="TestConfiguration"
-    class="com.cloud.usage.UsageManagerTestConfiguration" />
   <bean class="org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor">
     <property name="requiredParameterValue" value="false" />
   </bean>
