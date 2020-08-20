@@ -2029,7 +2029,7 @@ public class VirtualMachineManagerImpl extends ManagerBase implements VirtualMac
         return null;
     }
 
-    private void afterHypervisorMigrationCleanup(StoragePool destPool, VMInstanceVO vm, HostVO srcHost, Long srcClusterId, Answer[] hypervisorMigrationResults) throws InsufficientCapacityException {
+    private void afterHypervisorMigrationCleanup(StoragePool destPool, VMInstanceVO vm, Answer[] hypervisorMigrationResults) throws InsufficientCapacityException {
         boolean isDebugEnabled = s_logger.isDebugEnabled();
         if(isDebugEnabled) {
             String msg = String.format("cleaning up after hypervisor pool migration volumes for VM %s(%s) to pool %s(%s)", vm.getInstanceName(), vm.getUuid(), destPool.getName(), destPool.getUuid());
@@ -2084,22 +2084,19 @@ public class VirtualMachineManagerImpl extends ManagerBase implements VirtualMac
     }
 
     private void migrateThroughHypervisorOrStorage(StoragePool destPool, VMInstanceVO vm) throws StorageUnavailableException, InsufficientCapacityException {
-        final VirtualMachineProfile profile = new VirtualMachineProfileImpl(vm);
-        final Long srchostId = vm.getHostId() != null ? vm.getHostId() : vm.getLastHostId();
-        final HostVO srcHost = _hostDao.findById(srchostId);
-        final Long srcClusterId = srcHost.getClusterId();
+        VirtualMachineProfile profile = new VirtualMachineProfileImpl(vm);
         Answer[] hypervisorMigrationResults = attemptHypervisorMigration(destPool, vm);
-        boolean migrationResult = false;
+
         if (hypervisorMigrationResults == null) {
             // OfflineVmwareMigration: if the HypervisorGuru can't do it, let the volume manager take care of it.
-            migrationResult = volumeMgr.storageMigration(profile, destPool);
+            boolean migrationResult = volumeMgr.storageMigration(profile, destPool);
             if (migrationResult) {
-                afterStorageMigrationCleanup(destPool, vm, srcHost, srcClusterId);
+                afterStorageMigrationCleanup(destPool, vm);
             } else {
                 s_logger.debug("Storage migration failed");
             }
         } else {
-            afterHypervisorMigrationCleanup(destPool, vm, srcHost, srcClusterId, hypervisorMigrationResults);
+            afterHypervisorMigrationCleanup(destPool, vm, hypervisorMigrationResults);
         }
     }
 
@@ -2108,33 +2105,12 @@ public class VirtualMachineManagerImpl extends ManagerBase implements VirtualMac
             throw new CloudRuntimeException("Unable to migrate vm: missing destination storage pool");
         }
 
-        checkDestinationForTags(destPool, vm);
         try {
             stateTransitTo(vm, Event.StorageMigrationRequested, null);
         } catch (final NoTransitionException e) {
             String msg = String.format("Unable to migrate vm: %s", vm.getUuid());
             s_logger.debug(msg);
             throw new CloudRuntimeException(msg, e);
-        }
-    }
-
-    private void checkDestinationForTags(StoragePool destPool, VMInstanceVO vm) {
-        List<VolumeVO> vols = _volsDao.findUsableVolumesForInstance(vm.getId());
-        // OfflineVmwareMigration: iterate over volumes
-        // OfflineVmwareMigration: get disk offering
-        List<String> storageTags = storageMgr.getStoragePoolTagList(destPool.getId());
-        for(Volume vol : vols) {
-            DiskOfferingVO diskOffering = _diskOfferingDao.findById(vol.getDiskOfferingId());
-            List<String> volumeTags = StringUtils.csvTagsToList(diskOffering.getTags());
-            if(! matches(volumeTags, storageTags)) {
-                String msg = String.format("destination pool '%s' with tags '%s', does not support the volume diskoffering for volume '%s' (tags: '%s') ",
-                        destPool.getName(),
-                        StringUtils.listToCsvTags(storageTags),
-                        vol.getName(),
-                        StringUtils.listToCsvTags(volumeTags)
-                );
-                throw new CloudRuntimeException(msg);
-            }
         }
     }
 
@@ -2154,7 +2130,7 @@ public class VirtualMachineManagerImpl extends ManagerBase implements VirtualMac
     }
 
 
-    private void afterStorageMigrationCleanup(StoragePool destPool, VMInstanceVO vm, HostVO srcHost, Long srcClusterId) throws InsufficientCapacityException {
+    private void afterStorageMigrationCleanup(StoragePool destPool, VMInstanceVO vm) throws InsufficientCapacityException {
         setDestinationPoolAndReallocateNetwork(destPool, vm);
 
         //when start the vm next time, don;'t look at last_host_id, only choose the host based on volume/storage pool
@@ -2164,7 +2140,7 @@ public class VirtualMachineManagerImpl extends ManagerBase implements VirtualMac
         // If VM was cold migrated between clusters belonging to two different VMware DCs,
         // unregister the VM from the source host and cleanup the associated VM files.
         if (vm.getHypervisorType().equals(HypervisorType.VMware)) {
-            afterStorageMigrationVmwareVMcleanup(destPool, vm, srcHost, srcClusterId);
+            afterStorageMigrationVmwareVMcleanup(destPool, vm);
         }
     }
 
@@ -2182,15 +2158,28 @@ public class VirtualMachineManagerImpl extends ManagerBase implements VirtualMac
         }
     }
 
-    private void afterStorageMigrationVmwareVMcleanup(StoragePool destPool, VMInstanceVO vm, HostVO srcHost, Long srcClusterId) {
+    private void afterStorageMigrationVmwareVMcleanup(StoragePool destPool, VMInstanceVO vm) {
         // OfflineVmwareMigration: this should only happen on storage migration, else the guru would already have issued the command
-        final Long destClusterId = destPool.getClusterId();
-        if (srcClusterId != null && destClusterId != null && ! srcClusterId.equals(destClusterId)) {
-            final String srcDcName = _clusterDetailsDao.getVmwareDcName(srcClusterId);
-            final String destDcName = _clusterDetailsDao.getVmwareDcName(destClusterId);
-            if (srcDcName != null && destDcName != null && !srcDcName.equals(destDcName)) {
-                removeStaleVmFromSource(vm, srcHost);
-            }
+        Long destClusterId = destPool.getClusterId();
+        Long srchostId = vm.getHostId() != null ? vm.getHostId() : vm.getLastHostId();
+        if (srchostId == null) {
+            s_logger.debug(String.format("No Host ID was found when doing cleanup after migration for VM with ID = [%d] and Cluster destination ID = [%d]", vm.getId(), destClusterId));
+            return;
+        }
+        HostVO srcHost = _hostDao.findById(srchostId);
+        if (srcHost == null) {
+            s_logger.debug(String.format("When doing cleanup after migration could not find a host for the given ID = [%d]", srchostId));
+            return;
+        }
+        Long srcClusterId = srcHost.getClusterId();
+        if (srcClusterId.equals(destClusterId)) {
+            s_logger.debug("Since the Source cluster ID [%s] is equal to the Destination cluster ID [%s] we do not need to proceed with the clean up after migration");
+            return;
+        }
+        String srcDcName = _clusterDetailsDao.getVmwareDcName(srcClusterId);
+        String destDcName = _clusterDetailsDao.getVmwareDcName(destClusterId);
+        if(StringUtils.isNotBlank(srcDcName) && StringUtils.isNotBlank(destDcName)){
+            removeStaleVmFromSource(vm, srcHost);
         }
     }
 
