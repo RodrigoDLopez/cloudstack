@@ -2091,15 +2091,9 @@ public class VolumeApiServiceImpl extends ManagerBase implements VolumeApiServic
             throw new CloudRuntimeException("Storage pool " + destPool.getName() + " does not have enough space to migrate volume " + vol.getName());
         }
 
-        // OfflineVmwareMigration: check storage tags on disk(offering)s in comparison to destination storage pool
-        // OfflineVmwareMigration: if no match return a proper error now
         DiskOfferingVO diskOffering = _diskOfferingDao.findById(vol.getDiskOfferingId());
-        if (diskOffering.equals(null)) {
+        if (diskOffering == null) {
             throw new CloudRuntimeException("volume '" + vol.getUuid() + "', has no diskoffering. Migration target cannot be checked.");
-        }
-        if (!doesTargetStorageSupportDiskOffering(destPool, diskOffering)) {
-            throw new CloudRuntimeException(String.format("Migration target pool [%s, tags:%s] has no matching tags for volume [%s, uuid:%s, tags:%s]", destPool.getName(),
-                    getStoragePoolTags(destPool), vol.getName(), vol.getUuid(), diskOffering.getTags()));
         }
 
         if (liveMigrateVolume && destPool.getClusterId() != null && srcClusterId != null) {
