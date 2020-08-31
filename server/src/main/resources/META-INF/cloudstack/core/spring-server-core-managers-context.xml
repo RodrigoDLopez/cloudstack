@@ -243,6 +243,8 @@
 
     <bean id="statsCollector" class="com.cloud.server.StatsCollector" />
 
+    <bean id="storageCollector" class="com.cloud.server.StorageCollector" />
+
     <bean id="storagePoolAutomationImpl" class="com.cloud.storage.StoragePoolAutomationImpl" />
 
     <bean id="domainManagerImpl" class="com.cloud.user.DomainManagerImpl" />

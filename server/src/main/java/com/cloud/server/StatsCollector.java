@@ -35,9 +35,6 @@ import java.util.concurrent.TimeUnit;
 import javax.inject.Inject;
 
 import org.apache.cloudstack.engine.subsystem.api.storage.DataStore;
-import org.apache.cloudstack.engine.subsystem.api.storage.DataStoreManager;
-import org.apache.cloudstack.engine.subsystem.api.storage.EndPoint;
-import org.apache.cloudstack.engine.subsystem.api.storage.EndPointSelector;
 import org.apache.cloudstack.framework.config.ConfigKey;
 import org.apache.cloudstack.framework.config.Configurable;
 import org.apache.cloudstack.framework.config.dao.ConfigurationDao;
@@ -57,11 +54,9 @@ import org.influxdb.InfluxDBFactory;
 import org.influxdb.dto.BatchPoints;
 import org.influxdb.dto.Point;
 import org.influxdb.dto.Pong;
-import org.springframework.stereotype.Component;
 
 import com.cloud.agent.AgentManager;
 import com.cloud.agent.api.Answer;
-import com.cloud.agent.api.GetStorageStatsCommand;
 import com.cloud.agent.api.HostStatsEntry;
 import com.cloud.agent.api.PerformanceMonitorCommand;
 import com.cloud.agent.api.VgpuTypesInfo;
@@ -75,7 +70,6 @@ import com.cloud.dc.Vlan.VlanType;
 import com.cloud.dc.VlanVO;
 import com.cloud.dc.dao.ClusterDao;
 import com.cloud.dc.dao.VlanDao;
-import com.cloud.exception.StorageUnavailableException;
 import com.cloud.gpu.dao.HostGpuGroupsDao;
 import com.cloud.host.Host;
 import com.cloud.host.HostStats;
@@ -107,10 +101,8 @@ import com.cloud.resource.ResourceManager;
 import com.cloud.resource.ResourceState;
 import com.cloud.service.ServiceOfferingVO;
 import com.cloud.service.dao.ServiceOfferingDao;
-import com.cloud.storage.ImageStoreDetailsUtil;
 import com.cloud.storage.ScopeType;
 import com.cloud.storage.Storage.ImageFormat;
-import com.cloud.storage.StorageManager;
 import com.cloud.storage.StorageStats;
 import com.cloud.storage.VolumeStats;
 import com.cloud.storage.VolumeVO;
@@ -146,7 +138,6 @@ import com.cloud.vm.dao.VMInstanceDao;
  * Provides real time stats for various agent resources up to x seconds
  *
  */
-@Component
 public class StatsCollector extends ManagerBase implements ComponentMethodInterceptable, Configurable {
 
     public static enum ExternalStatsProtocol {
@@ -165,7 +156,7 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
 
     public static final Logger s_logger = Logger.getLogger(StatsCollector.class.getName());
 
-    private static final int UNDEFINED_PORT_VALUE = -1;
+        private static final int UNDEFINED_PORT_VALUE = -1;
 
     /**
      * Default value for the Graphite connection port: {@value}
@@ -217,8 +208,8 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
             true);
 
     private static StatsCollector s_instance = null;
-
     private ScheduledExecutorService _executor = null;
+
     @Inject
     private AgentManager _agentMgr;
     @Inject
@@ -234,15 +225,9 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
     @Inject
     private PrimaryDataStoreDao _storagePoolDao;
     @Inject
-    private StorageManager _storageManager;
-    @Inject
-    private DataStoreManager _dataStoreMgr;
-    @Inject
     private ResourceManager _resourceMgr;
     @Inject
     private ConfigurationDao _configDao;
-    @Inject
-    private EndPointSelector _epSelector;
     @Inject
     private VmDiskStatisticsDao _vmDiskStatsDao;
     @Inject
@@ -278,13 +263,12 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
     @Inject
     private HostGpuGroupsDao _hostGpuGroupsDao;
     @Inject
-    private ImageStoreDetailsUtil imageStoreDetailsUtil;
+    private StorageCollector storageCollector;
 
     private ConcurrentHashMap<Long, HostStats> _hostStats = new ConcurrentHashMap<Long, HostStats>();
     private final ConcurrentHashMap<Long, VmStats> _VmStats = new ConcurrentHashMap<Long, VmStats>();
     private final Map<String, VolumeStats> _volumeStats = new ConcurrentHashMap<String, VolumeStats>();
-    private ConcurrentHashMap<Long, StorageStats> _storageStats = new ConcurrentHashMap<Long, StorageStats>();
-    private ConcurrentHashMap<Long, StorageStats> _storagePoolStats = new ConcurrentHashMap<Long, StorageStats>();
+
 
     private long hostStatsInterval = -1L;
     private long hostAndVmStatsInterval = -1L;
@@ -383,7 +367,7 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
         }
 
         if (storageStatsInterval > 0) {
-            _executor.scheduleWithFixedDelay(new StorageCollector(), 15000L, storageStatsInterval, TimeUnit.MILLISECONDS);
+            _executor.scheduleWithFixedDelay(storageCollector, 15000L, storageStatsInterval, TimeUnit.MILLISECONDS);
         }
 
         if (autoScaleStatsInterval > 0) {
@@ -979,71 +963,6 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
         return null;
     }
 
-    class StorageCollector extends ManagedContextRunnable {
-        @Override
-        protected void runInContext() {
-            try {
-                if (s_logger.isDebugEnabled()) {
-                    s_logger.debug("StorageCollector is running...");
-                }
-
-                List<DataStore> stores = _dataStoreMgr.listImageStores();
-                ConcurrentHashMap<Long, StorageStats> storageStats = new ConcurrentHashMap<Long, StorageStats>();
-                for (DataStore store : stores) {
-                    if (store.getUri() == null) {
-                        continue;
-                    }
-
-                    Integer nfsVersion = imageStoreDetailsUtil.getNfsVersion(store.getId());
-                    GetStorageStatsCommand command = new GetStorageStatsCommand(store.getTO(), nfsVersion);
-                    EndPoint ssAhost = _epSelector.select(store);
-                    if (ssAhost == null) {
-                        s_logger.debug("There is no secondary storage VM for secondary storage host " + store.getName());
-                        continue;
-                    }
-                    long storeId = store.getId();
-                    Answer answer = ssAhost.sendMessage(command);
-                    if (answer != null && answer.getResult()) {
-                        storageStats.put(storeId, (StorageStats)answer);
-                        s_logger.trace("HostId: " + storeId + " Used: " + ((StorageStats)answer).getByteUsed() + " Total Available: " + ((StorageStats)answer).getCapacityBytes());
-                    }
-                }
-                _storageStats = storageStats;
-                ConcurrentHashMap<Long, StorageStats> storagePoolStats = new ConcurrentHashMap<Long, StorageStats>();
-
-                List<StoragePoolVO> storagePools = _storagePoolDao.listAll();
-                for (StoragePoolVO pool : storagePools) {
-                    // check if the pool has enabled hosts
-                    List<Long> hostIds = _storageManager.getUpHostsInPool(pool.getId());
-                    if (hostIds == null || hostIds.isEmpty())
-                        continue;
-                    GetStorageStatsCommand command = new GetStorageStatsCommand(pool.getUuid(), pool.getPoolType(), pool.getPath());
-                    long poolId = pool.getId();
-                    try {
-                        Answer answer = _storageManager.sendToPool(pool, command);
-                        if (answer != null && answer.getResult()) {
-                            storagePoolStats.put(pool.getId(), (StorageStats)answer);
-
-                            // Seems like we have dynamically updated the pool size since the prev. size and the current do not match
-                            if (_storagePoolStats.get(poolId) != null && _storagePoolStats.get(poolId).getCapacityBytes() != ((StorageStats)answer).getCapacityBytes()) {
-                                pool.setCapacityBytes(((StorageStats)answer).getCapacityBytes());
-                                _storagePoolDao.update(pool.getId(), pool);
-                            }
-                        }
-                    } catch (StorageUnavailableException e) {
-                        s_logger.info("Unable to reach " + pool, e);
-                    } catch (Exception e) {
-                        s_logger.warn("Unable to get stats for " + pool, e);
-                    }
-                }
-                _storagePoolStats = storagePoolStats;
-            } catch (Throwable t) {
-                s_logger.error("Error trying to retrieve storage stats", t);
-            }
-        }
-
-    }
-
     class AutoScaleMonitor extends ManagedContextRunnable {
         @Override
         protected void runInContext() {
@@ -1358,10 +1277,10 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
     }
 
     public boolean imageStoreHasEnoughCapacity(DataStore imageStore) {
-        if (!_storageStats.keySet().contains(imageStore.getId())) { // Stats not available for this store yet, can be a new store. Better to assume it has enough capacity?
+        if (!storageCollector.getSecondaryStorageStats().keySet().contains(imageStore.getId())) { // Stats not available for this store yet, can be a new store. Better to assume it has enough capacity?
             return true;
         }
-        StorageStats imageStoreStats = _storageStats.get(imageStore.getId());
+        StorageStats imageStoreStats = storageCollector.getSecondaryStorageStats().get(imageStore.getId());
         if (imageStoreStats != null && (imageStoreStats.getByteUsed() / (imageStoreStats.getCapacityBytes() * 1.0)) <= _imageStoreCapacityThreshold) {
             return true;
         }
@@ -1369,7 +1288,7 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
     }
 
     public long imageStoreCurrentFreeCapacity(DataStore imageStore) {
-        StorageStats imageStoreStats = _storageStats.get(imageStore.getId());
+        StorageStats imageStoreStats = storageCollector.getSecondaryStorageStats().get(imageStore.getId());
         return imageStoreStats != null ? Math.max(0, imageStoreStats.getCapacityBytes() - imageStoreStats.getByteUsed()) : 0;
     }
 
@@ -1555,7 +1474,7 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
     }
 
     public StorageStats getStorageStats(long id) {
-        return _storageStats.get(id);
+        return storageCollector.getSecondaryStorageStats().get(id);
     }
 
     public HostStats getHostStats(long hostId) {
@@ -1563,7 +1482,7 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
     }
 
     public StorageStats getStoragePoolStats(long id) {
-        return _storagePoolStats.get(id);
+        return storageCollector.getPrimaryStorageStats().get(id);
     }
 
     @Override
