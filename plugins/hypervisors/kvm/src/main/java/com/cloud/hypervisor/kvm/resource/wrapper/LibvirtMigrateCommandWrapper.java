@@ -20,6 +20,7 @@
 package com.cloud.hypervisor.kvm.resource.wrapper;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
@@ -44,6 +45,8 @@ import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
 import com.cloud.agent.api.to.DpdkTO;
+import com.cloud.utils.PropertiesUtil;
+import org.apache.cloudstack.utils.security.KeyStoreUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.StringUtils;
@@ -82,6 +85,8 @@ public final class LibvirtMigrateCommandWrapper extends CommandWrapper<MigrateCo
     private static final String GRAPHICS_ELEM_END = "/graphics>";
     private static final String GRAPHICS_ELEM_START = "<graphics";
     private static final String CONTENTS_WILDCARD = "(?s).*";
+    private static final String DEST_DOMAIN_MIGRATE_RETRIEVE_TIMEOUT= "dest.domain.migrate.retrieve.timeout";
+    private static final int DEFAULT_DEST_DOMAIN_MIGREATE_RETRIEVE_TIMEOUT_IN_SECONDS = 10;
     private static final Logger s_logger = Logger.getLogger(LibvirtMigrateCommandWrapper.class);
 
     protected String createMigrationURI(final String destinationIp, final LibvirtComputingResource libvirtComputingResource) {
@@ -214,7 +219,9 @@ public final class LibvirtMigrateCommandWrapper extends CommandWrapper<MigrateCo
             }
             s_logger.info("Migration thread for " + vmName + " is done");
 
-            destDomain = migrateThread.get(10, TimeUnit.SECONDS);
+            int destDomainMigrateThreadTime = parseAgentPropertiesDestDomainMigrateThreadTime();
+
+            destDomain = migrateThread.get(destDomainMigrateThreadTime, TimeUnit.SECONDS);
 
             if (destDomain != null) {
                 deleteOrDisconnectDisksOnSourcePool(libvirtComputingResource, migrateDiskInfoList, disks);
@@ -289,6 +296,17 @@ public final class LibvirtMigrateCommandWrapper extends CommandWrapper<MigrateCo
         }
 
         return new MigrateAnswer(command, result == null, result, null);
+    }
+
+    private int parseAgentPropertiesDestDomainMigrateThreadTime() throws IOException {
+        final File agentPropertiesFile = PropertiesUtil.findConfigFile(KeyStoreUtils.AGENT_PROPSFILE);
+        if (agentPropertiesFile != null) {
+            String configValue = PropertiesUtil.loadFromFile(agentPropertiesFile).getProperty(DEST_DOMAIN_MIGRATE_RETRIEVE_TIMEOUT);
+            if(StringUtils.isNotBlank(configValue)) {
+                return Integer.parseInt(configValue);
+            }
+        }
+        return DEFAULT_DEST_DOMAIN_MIGREATE_RETRIEVE_TIMEOUT_IN_SECONDS;
     }
 
     /**
