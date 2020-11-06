@@ -401,7 +401,7 @@ public class AncientDataMotionStrategy implements DataMotionStrategy {
 
         VolumeInfo volume = (VolumeInfo)srcData;
         StoragePool destPool = (StoragePool)dataStoreMgr.getDataStore(destData.getDataStore().getId(), DataStoreRole.Primary);
-        MigrateVolumeCommand command = new MigrateVolumeCommand(volume.getId(), volume.getPath(), destPool, volume.getAttachedVmName(), volume.getVolumeType(), waitInterval);
+        MigrateVolumeCommand command = new MigrateVolumeCommand(srcData.getTO(), destData.getTO(), null, null, StorageManager.KvmStorageOfflineMigrationWait.value());
         EndPoint ep = selector.select(srcData, StorageAction.MIGRATEVOLUME);
         Answer answer = null;
         if (ep == null) {
