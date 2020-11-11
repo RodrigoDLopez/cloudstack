@@ -30,13 +30,14 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cloudstack.utils.qemu.QemuImg.PhysicalDiskFormat;
+import org.libvirt.LibvirtException;
 
 
 @Ignore
 public class QemuImgTest {
 
     @Test
-    public void testCreateAndInfo() throws QemuImgException {
+    public void testCreateAndInfo() throws QemuImgException, LibvirtException {
         String filename = "/tmp/" + UUID.randomUUID() + ".qcow2";
 
         /* 10TB virtual_size */
@@ -63,7 +64,7 @@ public class QemuImgTest {
     }
 
     @Test
-    public void testCreateAndInfoWithOptions() throws QemuImgException {
+    public void testCreateAndInfoWithOptions() throws QemuImgException, LibvirtException {
         String filename = "/tmp/" + UUID.randomUUID() + ".qcow2";
 
         /* 10TB virtual_size */
@@ -137,7 +138,7 @@ public class QemuImgTest {
 
             Long infoSize = Long.parseLong(info.get(new String("virtual_size")));
             assertEquals(Long.valueOf(endSize), Long.valueOf(infoSize));
-        } catch (QemuImgException e) {
+        } catch (QemuImgException | LibvirtException e) {
             fail(e.getMessage());
         }
 
@@ -166,7 +167,7 @@ public class QemuImgTest {
 
             Long infoSize = Long.parseLong(info.get(new String("virtual_size")));
             assertEquals(Long.valueOf(startSize + increment), Long.valueOf(infoSize));
-        } catch (QemuImgException e) {
+        } catch (QemuImgException | LibvirtException e) {
             fail(e.getMessage());
         }
 
@@ -194,7 +195,7 @@ public class QemuImgTest {
 
             Long infoSize = Long.parseLong(info.get(new String("virtual_size")));
             assertEquals(Long.valueOf(startSize + increment), Long.valueOf(infoSize));
-        } catch (QemuImgException e) {
+        } catch (QemuImgException | LibvirtException e) {
             fail(e.getMessage());
         }
 
@@ -239,7 +240,7 @@ public class QemuImgTest {
     }
 
     @Test
-    public void testCreateWithBackingFile() throws QemuImgException {
+    public void testCreateWithBackingFile() throws QemuImgException, LibvirtException {
         String firstFileName = "/tmp/" + UUID.randomUUID() + ".qcow2";
         String secondFileName = "/tmp/" + UUID.randomUUID() + ".qcow2";
 
@@ -262,7 +263,7 @@ public class QemuImgTest {
     }
 
     @Test
-    public void testConvertBasic() throws QemuImgException {
+    public void testConvertBasic() throws QemuImgException, LibvirtException {
         long srcSize = 20480;
         String srcFileName = "/tmp/" + UUID.randomUUID() + ".qcow2";
         String destFileName = "/tmp/" + UUID.randomUUID() + ".qcow2";
@@ -287,7 +288,7 @@ public class QemuImgTest {
     }
 
     @Test
-    public void testConvertAdvanced() throws QemuImgException {
+    public void testConvertAdvanced() throws QemuImgException, LibvirtException {
         long srcSize = 4019200;
         String srcFileName = "/tmp/" + UUID.randomUUID() + ".qcow2";
         String destFileName = "/tmp/" + UUID.randomUUID() + ".qcow2";
