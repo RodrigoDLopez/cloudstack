@@ -101,6 +101,20 @@ public class VlanDaoImpl extends GenericDaoBase<VlanVO, Long> implements VlanDao
         return null;
     }
 
+    /**
+     * Returns a vlan by the network id and if the given IPv6 is in the network IP range.
+     */
+    @Override
+    public VlanVO findByNetworkIdAndIpv6(long networkId, String ipv6Address) {
+        List<VlanVO> vlanVoList = listVlansByNetworkId(networkId);
+        for (VlanVO vlan : vlanVoList) {
+            String ip6Cidr = vlan.getIp6Cidr();
+            if (NetUtils.isIp6InNetwork(ipv6Address, ip6Cidr))
+                return vlan;
+        }
+        return null;
+    }
+
     @Override
     public List<VlanVO> listByZone(long zoneId) {
         SearchCriteria<VlanVO> sc = ZoneSearch.create();
