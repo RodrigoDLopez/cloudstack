@@ -33,9 +33,9 @@ import com.cloud.utils.net.NetUtils;
 
 public class FakeDhcpSnooper implements DhcpSnooper {
     private static final Logger s_logger = Logger.getLogger(FakeDhcpSnooper.class);
-    private Queue<String> _ipAddresses = new ConcurrentLinkedQueue<String>();
-    private Map<String, String> _macIpMap = new ConcurrentHashMap<String, String>();
-    private Map<String, InetAddress> _vmIpMap = new ConcurrentHashMap<String, InetAddress>();
+    private Queue<String> ipAddresses = new ConcurrentLinkedQueue<String>();
+    private Map<String, String> macIpMap = new ConcurrentHashMap<String, String>();
+    private Map<String, InetAddress> vmIpMap = new ConcurrentHashMap<String, InetAddress>();
 
     @Override
     public boolean configure(String name, Map<String, Object> params) throws ConfigurationException {
@@ -46,7 +46,7 @@ public class FakeDhcpSnooper implements DhcpSnooper {
                 long start = NetUtils.ip2Long(guestIps[0]);
                 long end = NetUtils.ip2Long(guestIps[1]);
                 while (start <= end) {
-                    _ipAddresses.offer(NetUtils.long2Ip(start++));
+                    ipAddresses.offer(NetUtils.long2Ip(start++));
                 }
             }
         }
@@ -65,15 +65,15 @@ public class FakeDhcpSnooper implements DhcpSnooper {
 
     @Override
     public InetAddress getIPAddr(String macAddr, String vmName) {
-        String ipAddr = _ipAddresses.poll();
+        String ipAddr = ipAddresses.poll();
         if (ipAddr == null) {
             s_logger.warn("No ip addresses left in queue");
             return null;
         }
         try {
             InetAddress inetAddr = InetAddress.getByName(ipAddr);
-            _macIpMap.put(macAddr.toLowerCase(), ipAddr);
-            _vmIpMap.put(vmName, inetAddr);
+            macIpMap.put(macAddr.toLowerCase(), ipAddr);
+            vmIpMap.put(vmName, inetAddr);
             s_logger.info("Got ip address " + ipAddr + " for vm " + vmName + " mac=" + macAddr.toLowerCase());
             return inetAddr;
         } catch (UnknownHostException e) {
@@ -88,19 +88,19 @@ public class FakeDhcpSnooper implements DhcpSnooper {
             if (macAddr == null) {
                 return;
             }
-            InetAddress inetAddr = _vmIpMap.remove(vmName);
+            InetAddress inetAddr = vmIpMap.remove(vmName);
             String ipAddr = inetAddr.getHostName();
-            for (Map.Entry<String, String> entry : _macIpMap.entrySet()) {
+            for (Map.Entry<String, String> entry : macIpMap.entrySet()) {
                 if (entry.getValue().equalsIgnoreCase(ipAddr)) {
                     macAddr = entry.getKey();
                     break;
                 }
             }
-            ipAddr = _macIpMap.remove(macAddr);
+            ipAddr = macIpMap.remove(macAddr);
 
             s_logger.info("Cleaning up for mac address: " + macAddr + " ip=" + ipAddr + " inetAddr=" + inetAddr);
             if (ipAddr != null) {
-                _ipAddresses.offer(ipAddr);
+                ipAddresses.offer(ipAddr);
             }
         } catch (Exception e) {
             s_logger.debug("Failed to cleanup: " + e.toString());
@@ -109,7 +109,7 @@ public class FakeDhcpSnooper implements DhcpSnooper {
 
     @Override
     public Map<String, InetAddress> syncIpAddr() {
-        return _vmIpMap;
+        return vmIpMap;
     }
 
     @Override

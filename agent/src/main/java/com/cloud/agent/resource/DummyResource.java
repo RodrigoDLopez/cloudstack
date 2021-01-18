@@ -42,11 +42,11 @@ import com.cloud.storage.Storage.StoragePoolType;
 import com.cloud.utils.StringUtils;
 
 public class DummyResource implements ServerResource {
-    String _name;
-    Host.Type _type;
-    boolean _negative;
-    IAgentControl _agentControl;
-    Map<String, Object> _params;
+    String name;
+    Host.Type type;
+    boolean negative;
+    IAgentControl agentControl;
+    Map<String, Object> params;
 
     @Override
     public void disconnected() {
@@ -58,28 +58,28 @@ public class DummyResource implements ServerResource {
             return new CheckNetworkAnswer((CheckNetworkCommand)cmd, true, null);
         }
         System.out.println("Received Command: " + cmd.toString());
-        Answer answer = new Answer(cmd, !_negative, "response");
+        Answer answer = new Answer(cmd, !negative, "response");
         System.out.println("Replying with: " + answer.toString());
         return answer;
     }
 
     @Override
     public PingCommand getCurrentStatus(long id) {
-        return new PingCommand(_type, id);
+        return new PingCommand(type, id);
     }
 
     @Override
     public Type getType() {
-        return _type;
+        return type;
     }
 
     protected String getConfiguredProperty(String key, String defaultValue) {
-        String val = (String)_params.get(key);
+        String val = (String) params.get(key);
         return val == null ? defaultValue : val;
     }
 
     protected Long getConfiguredProperty(String key, Long defaultValue) {
-        String val = (String)_params.get(key);
+        String val = (String) params.get(key);
 
         if (val != null) {
             Long result = Long.parseLong(val);
@@ -120,9 +120,9 @@ public class DummyResource implements ServerResource {
 
     private Map<String, String> getVersionStrings() {
         Map<String, String> result = new HashMap<String, String>();
-        String hostOs = (String)_params.get("Host.OS");
-        String hostOsVer = (String)_params.get("Host.OS.Version");
-        String hostOsKernVer = (String)_params.get("Host.OS.Kernel.Version");
+        String hostOs = (String) params.get("Host.OS");
+        String hostOsVer = (String) params.get("Host.OS.Version");
+        String hostOsKernVer = (String) params.get("Host.OS.Kernel.Version");
         result.put("Host.OS", hostOs == null ? "Fedora" : hostOs);
         result.put("Host.OS.Version", hostOsVer == null ? "14" : hostOsVer);
         result.put("Host.OS.Kernel.Version", hostOsKernVer == null ? "2.6.35.6-45.fc14.x86_64" : hostOsKernVer);
@@ -156,7 +156,7 @@ public class DummyResource implements ServerResource {
         StartupStorageCommand sscmd = new StartupStorageCommand();
         sscmd.setPoolInfo(pi);
         sscmd.setGuid(pi.getUuid());
-        sscmd.setDataCenter((String)_params.get("zone"));
+        sscmd.setDataCenter((String) params.get("zone"));
         sscmd.setResourceType(Storage.StorageResourceType.STORAGE_POOL);
 
         return new StartupCommand[] {cmd, sscmd};
@@ -164,24 +164,24 @@ public class DummyResource implements ServerResource {
 
     @Override
     public boolean configure(String name, Map<String, Object> params) {
-        _name = name;
+        this.name = name;
 
         String value = (String)params.get("type");
-        _type = Host.Type.valueOf(value);
+        type = Host.Type.valueOf(value);
 
         value = (String)params.get("negative.reply");
-        _negative = Boolean.parseBoolean(value);
+        negative = Boolean.parseBoolean(value);
         setParams(params);
         return true;
     }
 
     public void setParams(Map<String, Object> params) {
-        this._params = params;
+        this.params = params;
     }
 
     @Override
     public String getName() {
-        return _name;
+        return name;
     }
 
     @Override
@@ -196,12 +196,12 @@ public class DummyResource implements ServerResource {
 
     @Override
     public IAgentControl getAgentControl() {
-        return _agentControl;
+        return agentControl;
     }
 
     @Override
     public void setAgentControl(IAgentControl agentControl) {
-        _agentControl = agentControl;
+        this.agentControl = agentControl;
     }
 
     @Override

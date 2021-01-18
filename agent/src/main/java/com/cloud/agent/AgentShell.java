@@ -55,24 +55,24 @@ import com.google.common.base.Strings;
 public class AgentShell implements IAgentShell, Daemon {
     private static final Logger s_logger = Logger.getLogger(AgentShell.class.getName());
 
-    private final Properties _properties = new Properties();
-    private final Map<String, Object> _cmdLineProperties = new HashMap<String, Object>();
-    private StorageComponent _storage;
-    private BackoffAlgorithm _backoff;
-    private String _version;
-    private String _zone;
-    private String _pod;
-    private String _host;
-    private String _privateIp;
-    private int _port;
-    private int _proxyPort;
-    private int _workers;
-    private String _guid;
-    private int _hostCounter = 0;
-    private int _nextAgentId = 1;
-    private volatile boolean _exit = false;
-    private int _pingRetries;
-    private final List<Agent> _agents = new ArrayList<Agent>();
+    private final Properties properties = new Properties();
+    private final Map<String, Object> cmdLineProperties = new HashMap<String, Object>();
+    private StorageComponent storage;
+    private BackoffAlgorithm backoff;
+    private String version;
+    private String zone;
+    private String pod;
+    private String host;
+    private String privateIp;
+    private int port;
+    private int proxyPort;
+    private int workers;
+    private String guid;
+    private int hostCounter = 0;
+    private int nextAgentId = 1;
+    private volatile boolean exit = false;
+    private int pingRetries;
+    private final List<Agent> agents = new ArrayList<Agent>();
     private String hostToConnect;
     private String connectedHost;
     private Long preferredHostCheckInterval;
@@ -82,42 +82,42 @@ public class AgentShell implements IAgentShell, Daemon {
 
     @Override
     public Properties getProperties() {
-        return _properties;
+        return properties;
     }
 
     @Override
     public BackoffAlgorithm getBackoffAlgorithm() {
-        return _backoff;
+        return backoff;
     }
 
     @Override
     public int getPingRetries() {
-        return _pingRetries;
+        return pingRetries;
     }
 
     @Override
     public String getVersion() {
-        return _version;
+        return version;
     }
 
     @Override
     public String getZone() {
-        return _zone;
+        return zone;
     }
 
     @Override
     public String getPod() {
-        return _pod;
+        return pod;
     }
 
     @Override
     public String getNextHost() {
         final String[] hosts = getHosts();
-        if (_hostCounter >= hosts.length) {
-            _hostCounter = 0;
+        if (hostCounter >= hosts.length) {
+            hostCounter = 0;
         }
-        hostToConnect = hosts[_hostCounter % hosts.length];
-        _hostCounter++;
+        hostToConnect = hosts[hostCounter % hosts.length];
+        hostCounter++;
         return hostToConnect;
     }
 
@@ -145,72 +145,72 @@ public class AgentShell implements IAgentShell, Daemon {
 
     @Override
     public void resetHostCounter() {
-        _hostCounter = 0;
+        hostCounter = 0;
     }
 
     @Override
     public String[] getHosts() {
-        return _host.split(",");
+        return host.split(",");
     }
 
     @Override
     public void setHosts(final String host) {
         if (!Strings.isNullOrEmpty(host)) {
-            _host = host.split(hostLbAlgorithmSeparator)[0];
+            this.host = host.split(hostLbAlgorithmSeparator)[0];
             resetHostCounter();
         }
     }
 
     @Override
     public String getPrivateIp() {
-        return _privateIp;
+        return privateIp;
     }
 
     @Override
     public int getPort() {
-        return _port;
+        return port;
     }
 
     @Override
     public int getProxyPort() {
-        return _proxyPort;
+        return proxyPort;
     }
 
     @Override
     public int getWorkers() {
-        return _workers;
+        return workers;
     }
 
     @Override
     public String getGuid() {
-        return _guid;
+        return guid;
     }
 
     @Override
     public Map<String, Object> getCmdLineProperties() {
-        return _cmdLineProperties;
+        return cmdLineProperties;
     }
 
     public String getProperty(String prefix, String name) {
         if (prefix != null)
-            return _properties.getProperty(prefix + "." + name);
+            return properties.getProperty(prefix + "." + name);
 
-        return _properties.getProperty(name);
+        return properties.getProperty(name);
     }
 
     @Override
     public String getPersistentProperty(String prefix, String name) {
         if (prefix != null)
-            return _storage.get(prefix + "." + name);
-        return _storage.get(name);
+            return storage.get(prefix + "." + name);
+        return storage.get(name);
     }
 
     @Override
     public void setPersistentProperty(String prefix, String name, String value) {
         if (prefix != null)
-            _storage.persist(prefix + "." + name, value);
+            storage.persist(prefix + "." + name, value);
         else
-            _storage.persist(name, value);
+            storage.persist(name, value);
     }
 
     void loadProperties() throws ConfigurationException {
@@ -223,7 +223,7 @@ public class AgentShell implements IAgentShell, Daemon {
         s_logger.info("agent.properties found at " + file.getAbsolutePath());
 
         try {
-            PropertiesUtil.loadFromFile(_properties, file);
+            PropertiesUtil.loadFromFile(properties, file);
         } catch (final FileNotFoundException ex) {
             throw new CloudRuntimeException("Cannot find the file: " + file.getAbsolutePath(), ex);
         } catch (final IOException ex) {
@@ -248,7 +248,7 @@ public class AgentShell implements IAgentShell, Daemon {
             final String paramValue = tokens[1];
 
             // save command line properties
-            _cmdLineProperties.put(paramName, paramValue);
+            cmdLineProperties.put(paramName, paramValue);
 
             if (paramName.equalsIgnoreCase("port")) {
                 port = paramValue;
@@ -263,7 +263,7 @@ public class AgentShell implements IAgentShell, Daemon {
             } else if (paramName.equalsIgnoreCase("guid")) {
                 guid = paramValue;
             } else if (paramName.equalsIgnoreCase("eth1ip")) {
-                _privateIp = paramValue;
+                privateIp = paramValue;
             }
         }
 
@@ -271,17 +271,17 @@ public class AgentShell implements IAgentShell, Daemon {
             port = getProperty(null, "port");
         }
 
-        _port = NumberUtils.toInt(port, 8250);
+        this.port = NumberUtils.toInt(port, 8250);
 
-        _proxyPort = NumberUtils.toInt(getProperty(null, "consoleproxy.httpListenPort"), 443);
+        proxyPort = NumberUtils.toInt(getProperty(null, "consoleproxy.httpListenPort"), 443);
 
         if (workers == null) {
             workers = getProperty(null, "workers");
         }
 
-        _workers = NumberUtils.toInt(workers, 5);
-        if (_workers <= 0) {
-            _workers = 5;
+        this.workers = NumberUtils.toInt(workers, 5);
+        if (this.workers <= 0) {
+            this.workers = 5;
         }
 
         if (host == null) {
@@ -295,41 +295,41 @@ public class AgentShell implements IAgentShell, Daemon {
         setHosts(host);
 
         if (zone != null)
-            _zone = zone;
+            this.zone = zone;
         else
-            _zone = getProperty(null, "zone");
-        if (_zone == null || (_zone.startsWith("@") && _zone.endsWith("@"))) {
-            _zone = "default";
+            this.zone = getProperty(null, "zone");
+        if (this.zone == null || (this.zone.startsWith("@") && this.zone.endsWith("@"))) {
+            this.zone = "default";
         }
 
         if (pod != null)
-            _pod = pod;
+            this.pod = pod;
         else
-            _pod = getProperty(null, "pod");
-        if (_pod == null || (_pod.startsWith("@") && _pod.endsWith("@"))) {
-            _pod = "default";
+            this.pod = getProperty(null, "pod");
+        if (this.pod == null || (this.pod.startsWith("@") && this.pod.endsWith("@"))) {
+            this.pod = "default";
         }
 
-        if (_host == null || (_host.startsWith("@") && _host.endsWith("@"))) {
-            throw new ConfigurationException("Host is not configured correctly: " + _host);
+        if (this.host == null || (this.host.startsWith("@") && this.host.endsWith("@"))) {
+            throw new ConfigurationException("Host is not configured correctly: " + this.host);
         }
 
         final String retries = getProperty(null, "ping.retries");
-        _pingRetries = NumbersUtil.parseInt(retries, 5);
+        pingRetries = NumbersUtil.parseInt(retries, 5);
 
         String value = getProperty(null, "developer");
         boolean developer = Boolean.parseBoolean(value);
 
         if (guid != null)
-            _guid = guid;
+            this.guid = guid;
         else
-            _guid = getProperty(null, "guid");
-        if (_guid == null) {
+            this.guid = getProperty(null, "guid");
+        if (this.guid == null) {
             if (!developer) {
                 throw new ConfigurationException("Unable to find the guid");
             }
-            _guid = UUID.randomUUID().toString();
-            _properties.setProperty("guid", _guid);
+            this.guid = UUID.randomUUID().toString();
+            properties.setProperty("guid", this.guid);
         }
 
         String val = getProperty(null, preferredHostIntervalKey);
@@ -368,35 +368,35 @@ public class AgentShell implements IAgentShell, Daemon {
         }
 
         final Class<?> c = this.getClass();
-        _version = c.getPackage().getImplementationVersion();
-        if (_version == null) {
+        version = c.getPackage().getImplementationVersion();
+        if (version == null) {
             throw new CloudRuntimeException("Unable to find the implementation version of this agent");
         }
-        s_logger.info("Implementation Version is " + _version);
+        s_logger.info("Implementation Version is " + version);
 
         loadProperties();
         parseCommand(args);
 
         if (s_logger.isDebugEnabled()) {
-            List<String> properties = Collections.list((Enumeration<String>)_properties.propertyNames());
+            List<String> properties = Collections.list((Enumeration<String>) this.properties.propertyNames());
             for (String property : properties) {
                 s_logger.debug("Found property: " + property);
             }
         }
 
         s_logger.info("Defaulting to using properties file for storage");
-        _storage = new PropertiesStorage();
-        _storage.configure("Storage", new HashMap<String, Object>());
+        storage = new PropertiesStorage();
+        storage.configure("Storage", new HashMap<String, Object>());
 
         // merge with properties from command line to let resource access
         // command line parameters
         for (Map.Entry<String, Object> cmdLineProp : getCmdLineProperties().entrySet()) {
-            _properties.put(cmdLineProp.getKey(), cmdLineProp.getValue());
+            properties.put(cmdLineProp.getKey(), cmdLineProp.getValue());
         }
 
         s_logger.info("Defaulting to the constant time backoff algorithm");
-        _backoff = new ConstantTimeBackoff();
-        _backoff.configure("ConstantTimeBackoff", new HashMap<String, Object>());
+        backoff = new ConstantTimeBackoff();
+        backoff.configure("ConstantTimeBackoff", new HashMap<String, Object>());
     }
 
     private void launchAgent() throws ConfigurationException {
@@ -449,14 +449,14 @@ public class AgentShell implements IAgentShell, Daemon {
 
     public void launchNewAgent(ServerResource resource) throws ConfigurationException {
         // we don't track agent after it is launched for now
-        _agents.clear();
+        agents.clear();
         Agent agent = new Agent(this, getNextAgentId(), resource);
-        _agents.add(agent);
+        agents.add(agent);
         agent.start();
     }
 
     public synchronized int getNextAgentId() {
-        return _nextAgentId++;
+        return nextAgentId++;
     }
 
     @Override
@@ -512,7 +512,7 @@ public class AgentShell implements IAgentShell, Daemon {
             launchAgent();
 
             try {
-                while (!_exit)
+                while (!exit)
                     Thread.sleep(1000);
             } catch (InterruptedException e) {
                 s_logger.debug("[ignored] AgentShell was interupted.");
@@ -531,7 +531,7 @@ public class AgentShell implements IAgentShell, Daemon {
 
     @Override
     public void stop() {
-        _exit = true;
+        exit = true;
     }
 
     @Override

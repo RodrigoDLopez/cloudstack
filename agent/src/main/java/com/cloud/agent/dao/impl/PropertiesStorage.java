@@ -37,25 +37,25 @@ import com.cloud.utils.PropertiesUtil;
  **/
 public class PropertiesStorage implements StorageComponent {
     private static final Logger s_logger = Logger.getLogger(PropertiesStorage.class);
-    Properties _properties = new Properties();
-    File _file;
-    String _name;
+    Properties properties = new Properties();
+    File file;
+    String name;
 
     @Override
     public synchronized String get(String key) {
-        return _properties.getProperty(key);
+        return properties.getProperty(key);
     }
 
     @Override
     public synchronized void persist(String key, String value) {
-        if (!loadFromFile(_file)) {
+        if (!loadFromFile(file)) {
             s_logger.error("Failed to load changes and then write to them");
         }
-        _properties.setProperty(key, value);
+        properties.setProperty(key, value);
         FileOutputStream output = null;
         try {
-            output = new FileOutputStream(_file);
-            _properties.store(output, _name);
+            output = new FileOutputStream(file);
+            properties.store(output, name);
             output.flush();
             output.close();
         } catch (IOException e) {
@@ -67,8 +67,8 @@ public class PropertiesStorage implements StorageComponent {
 
     private synchronized boolean loadFromFile(final File file) {
         try {
-            PropertiesUtil.loadFromFile(_properties, file);
-            _file = file;
+            PropertiesUtil.loadFromFile(properties, file);
+            this.file = file;
         } catch (FileNotFoundException e) {
             s_logger.error("How did we get here? ", e);
             return false;
@@ -81,7 +81,7 @@ public class PropertiesStorage implements StorageComponent {
 
     @Override
     public synchronized boolean configure(String name, Map<String, Object> params) {
-        _name = name;
+        this.name = name;
         String path = (String)params.get("path");
         if (path == null) {
             path = "agent.properties";
@@ -105,7 +105,7 @@ public class PropertiesStorage implements StorageComponent {
 
     @Override
     public synchronized String getName() {
-        return _name;
+        return name;
     }
 
     @Override

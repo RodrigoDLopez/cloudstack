@@ -37,7 +37,7 @@ public class MockVmMgr implements VmMgr {
     private final Map<String, MockVm> vms = new HashMap<String, MockVm>();
     private long vncPortMap = 0;
 
-    private Map<String, Object> _params = null;
+    private Map<String, Object> params = null;
 
     public MockVmMgr() {
     }
@@ -289,11 +289,11 @@ public class MockVmMgr implements VmMgr {
 
     @Override
     public void configure(Map<String, Object> params) {
-        _params = params;
+        this.params = params;
     }
 
     protected Long getConfiguredProperty(String key, Long defaultValue) {
-        String val = (String)_params.get(key);
+        String val = (String) params.get(key);
 
         if (val != null) {
             Long result = Long.parseLong(val);
@@ -303,7 +303,7 @@ public class MockVmMgr implements VmMgr {
     }
 
     protected Integer getConfiguredProperty(String key, Integer defaultValue) {
-        String val = (String)_params.get(key);
+        String val = (String) params.get(key);
 
         if (val != null) {
             Integer result = Integer.parseInt(val);
