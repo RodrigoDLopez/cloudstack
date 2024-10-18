@@ -247,7 +247,7 @@ public class RulesManagerImpl extends ManagerBase implements RulesManager, Rules
 
                 final Long accountId = ipAddress.getAllocatedToAccountId();
                 final Long domainId = ipAddress.getAllocatedInDomainId();
-                List<String> cidrList = rule.getSourceCidrList();
+                List<String> sourceCidrList = rule.getSourceCidrList();
 
                 // start port can't be bigger than end port
                 if (rule.getDestinationPortStart() > rule.getDestinationPortEnd()) {
@@ -312,7 +312,7 @@ public class RulesManagerImpl extends ManagerBase implements RulesManager, Rules
                 return Transaction.execute((TransactionCallbackWithException<PortForwardingRuleVO, NetworkRuleConflictException>) status -> {
                     PortForwardingRuleVO newRule =
                             new PortForwardingRuleVO(rule.getXid(), rule.getSourceIpAddressId(), rule.getSourcePortStart(), rule.getSourcePortEnd(), dstIpFinal,
-                                    rule.getDestinationPortStart(), rule.getDestinationPortEnd(), rule.getProtocol().toLowerCase(), networkId, accountId, domainId, vmId, cidrList);
+                                    rule.getDestinationPortStart(), rule.getDestinationPortEnd(), rule.getProtocol().toLowerCase(), networkId, accountId, domainId, vmId, sourceCidrList);
                     if (forDisplay != null) {
                         newRule.setDisplay(forDisplay);
                     }
