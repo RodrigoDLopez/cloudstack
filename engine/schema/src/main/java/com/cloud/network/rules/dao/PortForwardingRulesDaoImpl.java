@@ -175,6 +175,18 @@ public class PortForwardingRulesDaoImpl extends GenericDaoBase<PortForwardingRul
     }
 
     @Override
+    public int expungeByVmList(List<Long> vmIds, Long batchSize) {
+        if (CollectionUtils.isEmpty(vmIds)) {
+            return 0;
+        }
+        SearchBuilder<PortForwardingRuleVO> sb = createSearchBuilder();
+        sb.and("vmIds", sb.entity().getVirtualMachineId(), SearchCriteria.Op.IN);
+        SearchCriteria<PortForwardingRuleVO> sc = sb.create();
+        sc.setParameters("vmIds", vmIds.toArray());
+        return batchExpunge(sc, batchSize);
+    }
+
+    @Override
     public PortForwardingRuleVO persist(PortForwardingRuleVO portForwardingRule) {
         return Transaction.execute((TransactionCallback<PortForwardingRuleVO>) transactionStatus -> {
             PortForwardingRuleVO dbPfRule = super.persist(portForwardingRule);
@@ -185,6 +197,5 @@ public class PortForwardingRulesDaoImpl extends GenericDaoBase<PortForwardingRul
             portForwardingRule.setSourceCidrList(cidrList);
             return dbPfRule;
         });
-
     }
 }
